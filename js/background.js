@@ -307,7 +307,7 @@ The tweet has the following engagement metrics:
 ${engagementStr}
 
 Respond ONLY with valid JSON, no other text before or after:
-{"is_relevant": true, "topics": ["topic-id-1"], "viralityScore": 7, "hook": "What makes this tweet compelling", "sentiment": "positive", "summary": "One-line summary", "confidence": 0.85, "designerRelevance": "How this relates to FF Designer"}
+{"is_relevant": true, "topics": ["topic-id-1"], "viralityScore": 7, "hook": "What makes this tweet compelling", "sentiment": "positive", "summary": "One-line summary", "confidence": 0.85, "designerRelevance": "How this relates to FF Designer", "viralityFramework": "engagement_farming|organic|ragebait|clout_chasing|none"}
 
 Rules:
 - "is_relevant" should be true only if the tweet genuinely relates to one or more of the listed topics AND is relevant to the FF Designer product space (AI design tools, UI generation, design-to-code, prototyping, design systems, competitor activity, or user pain points FF Designer solves).
@@ -318,6 +318,7 @@ Rules:
 - "summary" is a concise one-line summary of the tweet's main point.
 - "confidence" is 0.0-1.0 indicating how confident you are in the classification.
 - "designerRelevance" is a brief note on how this tweet connects to FF Designer's market position, features, or competitive landscape.
+- "viralityFramework" identifies the virality tactic used: "engagement_farming" (generic prompts like "what's your hot take?", reply-bait, follow-for-follow), "ragebait" (intentionally inflammatory or misleading to provoke outrage), "clout_chasing" (riding trending topics or tagging big accounts for visibility without adding substance), "organic" (genuine insight, original content, or authentic sharing), or "none" if no clear pattern.
 - Ignore spam, unrelated content, or tweets with no substantive signal for the FF Designer product space.`,
       messages: [
         {
@@ -366,15 +367,27 @@ async function generateDigest(apiKey, tweets, previousTrends = null) {
   const weekEnd = now.toISOString().slice(0, 10);
   const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const tweetSummaries = tweets.map((t, i) => {
+  // Score and rank tweets by engagement (likes ×1 + comments ×3 + bookmarks ×2 + retweets ×2 + views ×0.01)
+  const scored = tweets.map(t => ({
+    ...t,
+    engagementScore: (t.likes || 0) + (t.replies || 0) * 3 + (t.bookmarks || 0) * 2 + (t.retweets || 0) * 2 + (t.views || 0) * 0.01
+  }));
+  scored.sort((a, b) => b.engagementScore - a.engagementScore);
+
+  // Mark top 5
+  const top5Ids = new Set(scored.slice(0, 5).map(t => t.id));
+
+  const tweetSummaries = scored.map((t, i) => {
     const topicNames = (t.topics || []).map(tp => tp.name || tp).join(', ');
     const authorTier = t.authorTier || classifyAuthorTier(t.followers);
-    return `${i + 1}. @${t.handle || 'unknown'} [${authorTier}]
+    const isTop5 = top5Ids.has(t.id) ? ' ⭐ TOP 5' : '';
+    return `${i + 1}. @${t.handle || 'unknown'} [${authorTier}]${isTop5}
    Text: "${(t.text || '').slice(0, 280)}"
+   Link: ${t.url || 'N/A'}
    Topics: ${topicNames} | Virality: ${t.viralityScore || 'N/A'} | Sentiment: ${t.sentiment || 'N/A'}
-   Likes: ${t.likes || 0} | RTs: ${t.retweets || 0} | Replies: ${t.replies || 0} | Views: ${t.views || 0}
+   Likes: ${t.likes || 0} | RTs: ${t.retweets || 0} | Replies: ${t.replies || 0} | Bookmarks: ${t.bookmarks || 0} | Views: ${t.views || 0}
    Hook type: ${t.hook || 'N/A'} | Format: ${t.format || 'text'} | Platform: ${t.platform || 'X'}
-   Emotion: ${t.primaryEmotion || 'N/A'}`;
+   Emotion: ${t.primaryEmotion || 'N/A'} | Virality framework: ${t.viralityFramework || 'N/A'}`;
   }).join('\n\n');
 
   const trendsContext = previousTrends
@@ -390,66 +403,78 @@ async function generateDigest(apiKey, tweets, previousTrends = null) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-6',
       max_tokens: 4000,
-      system: `You are a content strategist and market analyst for FF Designer — an AI-powered UI design tool that generates production-ready designs from natural language prompts.
+      system: `You are a sharp content strategist for FF Designer — an AI-powered UI design tool.
 
 ${PRODUCT_CONTEXT}
 
-Generate a weekly digest in markdown. The digest serves TWO audiences on the same team: strategists who need market context, and content creators who need copy-ready inspiration. Structure it exactly as follows:
+Generate a weekly digest in markdown. TOTAL output must be under 2500 words. Scannable, punchy, zero fluff. Optimized for skimming — a reader should get 80% of the value by reading only the bold text.
 
 ---
-
-# STRATEGIC LAYER (skim weekly)
 
 ## 1. Market Pulse
-Merge market signals and competitive intelligence into ONE concise section. What happened this week in the AI design / vibe design space? Who shipped what? What discourse shifted? Keep to 5–8 bullet points. Focus on what's IN THE CONVERSATION right now so the team stays culturally current. Name competitors explicitly (Figma, Framer, v0, Bolt, Lovable, Galileo AI, etc.) only when they did something notable.
 
-## 2. User Sentiment Snapshot
-Surface design-tool frustrations, wishlists, and unmet needs — but prioritize capturing the EXACT LANGUAGE and framing people use. Quote the phrases verbatim (e.g. "I spent 3 hours fighting auto-layout"). Note sentiment direction: is this a growing frustration, a fading complaint, or a new emerging pain? Flag anything FF Designer already solves or could uniquely address.
+5–7 bullets. Each starts with a **bold label**, then 1–2 lines of context. Example:
+• **Figma AI** — shipped auto-layout suggestions. Twitter discourse split on quality vs. speed. Designers calling it "half-baked" but PMs love it.
+• **v0 pricing** — backlash over new token limits. "priced out" trending among indie devs.
 
 ---
 
-# TACTICAL LAYER (reference when creating content)
+## 2. Sentiment
 
-## 3. Top Performers Breakdown
-Top 5 tweets by virality. For EACH tweet, provide:
-- **Tweet**: The full text (or key excerpt)
-- **Author**: Handle and tier (founder / influencer / dev / designer / random)
-- **Numbers**: Likes, RTs, replies, views
-- **Hook pattern**: Categorize the opening — hot take, before/after, demo video, "nobody talks about…", thread, ratio bait, question, controversial claim, tutorial, meme, etc.
-- **Emotional lever**: What feeling drove engagement — awe, frustration, FOMO, humor, validation, outrage?
-- **Why it worked**: 2–3 sentences on mechanics (timing, controversy, visual proof, relatability, etc.)
-- **FF Designer angle**: One concrete way FF Designer could create a response tweet, riff, or parallel piece of content riding this same wave.
+4–5 bullets. Start each with a **quoted user phrase** in bold, then direction and FF Designer relevance. Example:
+• **"I spent 3 hours fighting auto-layout"** — growing frustration (3rd week running). FF Designer's prompt-to-layout solves this directly.
+• **"Why can't AI just read my Figma file?"** — new emerging pain point. Opportunity for FF Designer import feature.
+
+---
+
+## 3. Top 5 Tweets
+
+The 5 tweets marked with ⭐ TOP 5 are pre-ranked by engagement score (weighted: replies ×3, bookmarks ×2, RTs ×2, likes ×1, views ×0.01). Use these 5 in order. Each tweet as a distinct block separated by a blank line. Format:
+
+**1. @handle** (tier)
+> *"Key excerpt of the tweet text"*
+• **Link**: url
+• **Hook**: type · **Emotion**: type · **Framework**: organic/farming/ragebait/clout
+• **Stats**: Xk likes · X RTs · X replies · Xk views
+• **Why it hit**: 1–2 sentences on the mechanics — what about the timing, framing, or format made this pop.
+• **FF angle**: 1 concrete content idea FF Designer could execute in response.
+
+---
 
 ## 4. Content Playbook
-3–5 specific tweet concepts the FF Designer marketing team could publish THIS WEEK. For each:
-- **Draft hook**: An actual opening line they can use or adapt (write it like a real tweet)
-- **Format**: text post, screen recording, before/after, carousel, quote tweet, thread, meme
-- **Rides on**: Which trending topic or discourse this taps into
-- **Emotional lever**: The feeling it targets
-- **Why now**: Why this week specifically (tied to something from the data)
 
-Be opinionated and specific. "Post a 12-second screen recording of FF Designer generating a full dashboard from a prompt, hook: 'This is what $0 and a sentence gets you in 2026'" is the level of specificity required. Never write vague advice like "consider showcasing speed."
+3–4 concepts. Each as a distinct block with enough detail to hand directly to a content creator:
 
-## 5. Glossary of the Week
-3–6 new or trending terms, slang, phrases, or memes that entered the design/dev Twitter vocabulary this week (or gained significant traction). Define each briefly. This helps the team use the right language at the right time.
+**Concept 1**: *format type*
+> *"The actual tweet opening line written as a real tweet"*
+• **Rides on**: Which trend or discourse from this week
+• **Why now**: 1–2 sentences on timing and relevance
 
-## 6. Trends Tracker
-A persistent section tracking 5–8 theme trajectories across weeks. For each theme:
-- **Theme name**
-- **Direction**: 📈 Rising, 📊 Peaking, 📉 Fading, 🆕 New this week
-- **Evidence**: 1-line summary of what you saw this week
+---
 
-${previousTrends ? 'Use the previous trends data provided to maintain continuity — update directions, graduate or retire themes as needed, and add new ones.' : 'This is the first digest, so establish the initial set of themes based on this week\'s data.'}
+## 5. Trends
+
+5–8 themes. Each on one line with emoji direction indicator:
+• 📈 **Theme name** — 1-line evidence from this week
+• 📊 **Theme name** — 1-line evidence
+• 📉 **Theme name** — 1-line evidence
+• 🆕 **Theme name** — 1-line evidence
+
+${previousTrends ? 'Update from previous trends — retire stale, add new.' : 'Establish initial themes from this week.'}
 
 ---
 
 FORMATTING RULES:
-- Use clean markdown with headers, bold, and bullet points.
-- Be concise but never vague. Every sentence should be actionable or informative.
-- Write the Content Playbook entries as if you're a senior social media strategist pitching to the team, not an analyst writing a report.
-- In the Top Performers section, always include the hook pattern and emotional lever — these are the most valuable fields for the content team.`,
+• CRITICAL: Use • (bullet character U+2022) for ALL bullet points. NEVER use - or * as bullet markers.
+• No intro, no conclusion, no preamble. Start directly with ## 1.
+• No tables. Use bullets and bold text for structure.
+• Use **bold** liberally for labels and key phrases — this is how readers skim.
+• All quoted text (tweet excerpts, hook drafts) MUST use > blockquote with *italics*. Never bold inside a blockquote. Example: > *"This is how it should look"*
+• Separate each tweet/concept block with a blank line for breathing room.
+• Use · (middle dot) as inline separator instead of | for cleaner reading.
+• Prefer fragments over full sentences when meaning is clear.`,
       messages: [
         {
           role: 'user',
@@ -467,8 +492,8 @@ FORMATTING RULES:
   const data = await response.json();
   const markdown = data.content[0].text.trim();
 
-  // Extract the Trends Tracker section for persistence across digests
-  const trendsMatch = markdown.match(/## 6\. Trends Tracker\n([\s\S]*?)(?=\n---|\n#|$)/);
+  // Extract the Trends section for persistence across digests
+  const trendsMatch = markdown.match(/## 5\. Trends\n([\s\S]*?)(?=\n---|\n#|$)/);
   const extractedTrends = trendsMatch ? trendsMatch[1].trim() : null;
 
   return {
@@ -513,19 +538,57 @@ async function saveDigest(digest) {
 
 // --- Slack integration ---
 
+function extractSlackSections(markdown) {
+  // Extract only Top 5 Tweets and Content Playbook for Slack
+  const sections = markdown.split(/^## /gm);
+  let slackMd = '';
+
+  for (const section of sections) {
+    // Match sections 3 and 4 by number prefix
+    if (/^[34]\.\s/.test(section.trim())) {
+      slackMd += '## ' + section.trim() + '\n\n';
+    }
+  }
+
+  return slackMd.trim() || markdown;
+}
+
 async function sendToSlack(webhookUrl, markdown) {
-  // Convert markdown to Slack Block Kit format
-  const blocks = markdownToSlackBlocks(markdown);
+  // Send only Top 5 + Content Playbook to Slack
+  const slackMarkdown = extractSlackSections(markdown);
+  const blocks = markdownToSlackBlocks(slackMarkdown);
 
-  const response = await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ blocks })
-  });
+  // Slack allows max 50 blocks per request — split into batches if needed
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < blocks.length; i += BATCH_SIZE) {
+    const batch = blocks.slice(i, i + BATCH_SIZE);
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      body: JSON.stringify({ blocks: batch })
+    });
 
-  if (!response.ok) {
-    const errBody = await response.text();
-    throw new Error(`Slack webhook error ${response.status}: ${errBody}`);
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Slack webhook error ${response.status}: ${errBody}`);
+    }
+  }
+
+  // Send each tweet link as its own message using fxtwitter.com for previews
+  // X/Twitter blocks Slack unfurls — fxtwitter provides oEmbed that Slack can render
+  const tweetUrls = markdown.match(/https?:\/\/(?:x|twitter)\.com\/[^\s)]+\/status\/\d+/g);
+  if (tweetUrls) {
+    const uniqueUrls = [...new Set(tweetUrls)];
+    for (const url of uniqueUrls) {
+      const fxUrl = url.replace(/https?:\/\/(x|twitter)\.com/, 'https://fxtwitter.com');
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        body: JSON.stringify({ text: fxUrl, unfurl_links: true, unfurl_media: true })
+      });
+      // Wait 1s between messages to let Slack process unfurls
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
 }
 
@@ -534,19 +597,66 @@ function markdownToSlackBlocks(markdown) {
   const lines = markdown.split('\n');
   let currentSection = '';
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  // Slack section text limit is 3000 chars
+  const SECTION_LIMIT = 2900;
 
-    // Top-level header (# or ##) -> header block
-    if (/^#{1,2}\s+/.test(trimmed)) {
-      // Flush any accumulated section text
-      if (currentSection.trim()) {
-        blocks.push({
-          type: 'section',
-          text: { type: 'mrkdwn', text: currentSection.trim() }
-        });
-        currentSection = '';
+  function flushSection() {
+    const text = currentSection.trim();
+    if (!text) return;
+    // Split into chunks if exceeding Slack's 3000 char limit
+    if (text.length <= SECTION_LIMIT) {
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text } });
+    } else {
+      // Split on double newlines first, then single newlines
+      const paragraphs = text.split(/\n\n/);
+      let chunk = '';
+      for (const para of paragraphs) {
+        if (chunk.length + para.length + 2 > SECTION_LIMIT) {
+          if (chunk.trim()) {
+            blocks.push({ type: 'section', text: { type: 'mrkdwn', text: chunk.trim() } });
+          }
+          chunk = para;
+        } else {
+          chunk += (chunk ? '\n\n' : '') + para;
+        }
       }
+      if (chunk.trim()) {
+        blocks.push({ type: 'section', text: { type: 'mrkdwn', text: chunk.trim() } });
+      }
+    }
+    currentSection = '';
+  }
+
+  let i = 0;
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+
+    // Detect markdown table: line with pipes followed by separator row
+    if (trimmed.includes('|') && i + 1 < lines.length && /^\|?\s*[-:]+[-|\s:]+$/.test(lines[i + 1].trim())) {
+      flushSection();
+      // Collect all table rows as monospace block
+      const tableLines = [lines[i].trim()];
+      i++; // skip separator
+      i++;
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      // Render as code block in Slack (best table approximation)
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: '```\n' + tableLines.join('\n') + '\n```' }
+      });
+      continue;
+    }
+
+    // Horizontal rules -> divider block
+    if (/^-{3,}$/.test(trimmed)) {
+      flushSection();
+      blocks.push({ type: 'divider' });
+    // Top-level header (# or ##) -> header block
+    } else if (/^#{1,2}\s+/.test(trimmed)) {
+      flushSection();
       const headerText = trimmed.replace(/^#{1,2}\s+/, '');
       blocks.push({
         type: 'header',
@@ -554,39 +664,33 @@ function markdownToSlackBlocks(markdown) {
       });
     } else if (/^#{3,}\s+/.test(trimmed)) {
       // Sub-headers (### and below) -> bold text in a new section
-      if (currentSection.trim()) {
-        blocks.push({
-          type: 'section',
-          text: { type: 'mrkdwn', text: currentSection.trim() }
-        });
-        currentSection = '';
-      }
+      flushSection();
       const subHeader = trimmed.replace(/^#{3,}\s+/, '');
       currentSection = `*${subHeader}*\n`;
     } else if (trimmed === '') {
-      // Empty line — might signal section break
       if (currentSection.trim()) {
         currentSection += '\n';
       }
     } else {
       // Convert markdown bold **text** to Slack bold *text*
-      const slackLine = trimmed.replace(/\*\*(.+?)\*\*/g, '*$1*');
+      let slackLine = trimmed.replace(/\*\*(.+?)\*\*/g, '*$1*');
+      // Convert markdown dash bullets to • for Slack
+      slackLine = slackLine.replace(/^- /, '• ');
+      // Wrap @handles in inline code
+      slackLine = slackLine.replace(/@(\w{1,15})\b/g, '`@$1`');
+      // Convert markdown blockquotes (> text) to Slack blockquotes
+      // Strip any bold inside blockquotes — quotes should be italic only
+      if (slackLine.startsWith('> ')) {
+        slackLine = '> ' + slackLine.slice(2).replace(/\*([^*]+)\*/g, (_, inner) => {
+          // Preserve italic (single *) but remove bold (was ** before conversion)
+          return '_' + inner + '_';
+        });
+      }
       currentSection += slackLine + '\n';
     }
+    i++;
   }
 
-  // Flush remaining section
-  if (currentSection.trim()) {
-    blocks.push({
-      type: 'section',
-      text: { type: 'mrkdwn', text: currentSection.trim() }
-    });
-  }
-
-  // Slack has a limit of 50 blocks per message
-  if (blocks.length > 50) {
-    return blocks.slice(0, 50);
-  }
-
+  flushSection();
   return blocks;
 }

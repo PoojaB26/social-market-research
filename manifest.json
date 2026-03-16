@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "description": "Track viral tweets in configurable market topics, score virality, generate weekly analytics digests, and post to Slack.",
   "permissions": ["storage", "activeTab", "alarms"],
+  "host_permissions": [
+    "https://hooks.slack.com/*",
+    "https://api.anthropic.com/*"
+  ],
   "icons": {
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"

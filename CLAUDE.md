@@ -34,7 +34,7 @@ No build step — plain JS. Load unpacked at `chrome://extensions/` pointing to 
 - **Max stored tweets**: 500 (in Chrome storage)
 - **Max stored digests**: 12
 - **Classification model**: `claude-haiku-4-5-20251001`
-- **Digest model**: `claude-sonnet-4-6`
+- **Digest model**: `claude-opus-4-6`
 - **Tweet min length**: 50 chars (shorter tweets skipped)
 - **Confidence threshold**: 0.6 (below this, tweets are discarded)
 - **CSS prefix**: `tmi-` (to avoid conflicts with sibling extension Tweet Tool Finder which uses `ttf-`)

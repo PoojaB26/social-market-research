@@ -684,6 +684,57 @@
         margin: 12px 0;
       }
 
+      .tmi-digest-display blockquote {
+        border-left: 3px solid #4e8cff;
+        margin: 8px 0;
+        padding: 6px 12px;
+        background: rgba(78, 140, 255, 0.06);
+        border-radius: 0 6px 6px 0;
+        color: #b0b0c0;
+        font-style: italic;
+      }
+
+      .tmi-digest-display code {
+        background: rgba(255,255,255,0.08);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.9em;
+        color: #7eb8ff;
+      }
+
+      .tmi-digest-display .tmi-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 11px;
+      }
+
+      .tmi-digest-display .tmi-table th,
+      .tmi-digest-display .tmi-table td {
+        padding: 6px 10px;
+        text-align: left;
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+
+      .tmi-digest-display .tmi-table th {
+        background: rgba(255,255,255,0.05);
+        font-weight: 600;
+        color: #b0b0c0;
+        font-family: 'JetBrains Mono', monospace;
+        text-transform: uppercase;
+        font-size: 10px;
+        letter-spacing: 0.5px;
+      }
+
+      .tmi-digest-display .tmi-table td {
+        color: #9a9aaa;
+      }
+
+      .tmi-digest-display .tmi-table tr:hover td {
+        background: rgba(255,255,255,0.03);
+      }
+
       .tmi-digest-history {
         margin-top: 12px;
       }
@@ -987,6 +1038,7 @@
         </div>
         ${tweet.summary ? `<div class="tmi-card-summary">\u{1F4A1} ${escapeHtml(tweet.summary)}</div>` : ''}
         ${tweet.designerRelevance ? `<div class="tmi-card-relevance">\u{1F3AF} ${escapeHtml(tweet.designerRelevance)}</div>` : ''}
+        ${tweet.viralityFramework && tweet.viralityFramework !== 'none' && tweet.viralityFramework !== 'organic' ? `<div class="tmi-card-framework">\u26A0\uFE0F ${escapeHtml(tweet.viralityFramework.replace(/_/g, ' '))}</div>` : ''}
         <div class="tmi-engagement">
           <span>\u2764\uFE0F ${formatNumber(tweet.likes || 0)}</span>
           <span>\u{1F501} ${formatNumber(tweet.retweets || 0)}</span>
@@ -1315,6 +1367,7 @@
           sentiment: result.sentiment || '',
           summary: result.summary || '',
           designerRelevance: result.designerRelevance || '',
+          viralityFramework: result.viralityFramework || 'none',
           confidence: result.confidence,
           foundAt: new Date().toISOString()
         };
@@ -1628,7 +1681,38 @@
 
   function markdownToHtml(md) {
     if (!md) return '';
-    let html = escapeHtml(md);
+
+    // Parse tables before escaping HTML (they need structural conversion)
+    const lines = md.split('\n');
+    const processed = [];
+    let i = 0;
+    while (i < lines.length) {
+      // Detect table: line with pipes, followed by separator row (|---|---|)
+      if (lines[i].includes('|') && i + 1 < lines.length && /^\|?\s*[-:]+[-|\s:]+$/.test(lines[i + 1])) {
+        const headerCells = lines[i].split('|').map(c => c.trim()).filter(c => c);
+        i += 2; // skip header + separator
+        const bodyRows = [];
+        while (i < lines.length && lines[i].includes('|') && !/^\|?\s*[-:]+[-|\s:]+$/.test(lines[i])) {
+          bodyRows.push(lines[i].split('|').map(c => c.trim()).filter(c => c));
+          i++;
+        }
+        let table = '<table class="tmi-table"><thead><tr>';
+        headerCells.forEach(c => { table += `<th>${escapeHtml(c)}</th>`; });
+        table += '</tr></thead><tbody>';
+        bodyRows.forEach(row => {
+          table += '<tr>';
+          row.forEach(c => { table += `<td>${escapeHtml(c)}</td>`; });
+          table += '</tr>';
+        });
+        table += '</tbody></table>';
+        processed.push(table);
+      } else {
+        processed.push(escapeHtml(lines[i]));
+        i++;
+      }
+    }
+
+    let html = processed.join('\n');
     // Horizontal rules
     html = html.replace(/^---$/gm, '<hr>');
     html = html.replace(/^\*\*\*$/gm, '<hr>');
@@ -1636,23 +1720,32 @@
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    // Blockquotes (> lines) — must come before bold/italic
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    // Merge consecutive blockquotes
+    html = html.replace(/<\/blockquote>\n<blockquote>/g, '\n');
     // Bold
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // Italic
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     html = html.replace(/_(.+?)_/g, '<em>$1</em>');
-    // Unordered lists
+    // Inline code for @handles
+    html = html.replace(/@(\w{1,15})\b/g, '<code>@$1</code>');
+    // Unordered lists (markdown - or * bullets, and • unicode bullets)
+    html = html.replace(/^[•] (.+)$/gm, '<li>$1</li>');
     html = html.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
     // Ordered lists
     html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
     // Wrap consecutive <li> in <ul>
     html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-    // Line breaks for remaining lines
+    // Line breaks for remaining lines (but not inside tables)
     html = html.replace(/\n/g, '<br>');
     // Clean up double <br> after block elements
     html = html.replace(/(<\/h[123]>)<br>/g, '$1');
     html = html.replace(/(<hr>)<br>/g, '$1');
     html = html.replace(/(<\/ul>)<br>/g, '$1');
+    html = html.replace(/(<\/table>)<br>/g, '$1');
+    html = html.replace(/(<\/blockquote>)<br>/g, '$1');
     return html;
   }
 
