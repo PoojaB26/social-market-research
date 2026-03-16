@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Tweet Market Intel",
+  "version": "1.0.0",
+  "description": "Track viral tweets in configurable market topics, score virality, generate weekly analytics digests, and post to Slack.",
+  "permissions": ["storage", "activeTab", "alarms"],
+  "icons": {
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://x.com/*", "*://twitter.com/*"],
+      "js": ["js/content.js"],
+      "css": ["css/sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "js/background.js"
+  }
+}

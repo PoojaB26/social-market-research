@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 400px;
+      font-family: 'DM Sans', sans-serif;
+      background: #0d0d0f;
+      color: #e8e6e3;
+      padding: 0;
+    }
+
+    .popup-header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .popup-header h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 700;
+      color: #00e5a0;
+      letter-spacing: -0.5px;
+    }
+
+    .popup-header p {
+      font-size: 12px;
+      color: #8a8a9a;
+      margin-top: 4px;
+    }
+
+    .popup-body {
+      padding: 18px 22px 22px;
+    }
+
+    label {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: #6a6a7a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    input[type="password"],
+    input[type="text"],
+    input[type="url"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 8px;
+      color: #e8e6e3;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236a6a7a' stroke-width='1.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    select option {
+      background: #1a1a2e;
+      color: #e8e6e3;
+    }
+
+    input:focus, select:focus {
+      border-color: #00e5a0;
+    }
+
+    .field-group {
+      margin-bottom: 16px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-top: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .toggle-row > span {
+      font-size: 13px;
+      color: #c0c0cc;
+      position: relative;
+      cursor: default;
+    }
+
+    .toggle-row > span[data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 0;
+      top: calc(100% + 6px);
+      width: 220px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 11px;
+      color: #8a8a9a;
+      line-height: 1.5;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .toggle {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: #2a2a3e;
+      border-radius: 24px;
+      transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+      content: "";
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: #6a6a7a;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: #00e5a0;
+    }
+
+    .toggle input:checked + .toggle-slider.pause-slider {
+      background: #ffb800;
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(18px);
+      background: #0d0d0f;
+    }
+
+    .btn-save {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      background: #00e5a0;
+      color: #0d0d0f;
+      border: none;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-save:hover { background: #00cc8e; }
+    .btn-save:active { transform: scale(0.98); }
+
+    .status {
+      text-align: center;
+      font-size: 12px;
+      color: #00e5a0;
+      margin-top: 10px;
+      min-height: 18px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .stat-card .number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      color: #00e5a0;
+    }
+
+    .stat-card .label {
+      font-size: 10px;
+      color: #6a6a7a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .chip-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .handle-chip, .topic-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #8a8a9a;
+    }
+
+    .topic-chip {
+      border-left: 3px solid;
+    }
+
+    .handle-chip .remove-chip,
+    .topic-chip .remove-chip {
+      cursor: pointer;
+      color: #5a5a6a;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .handle-chip .remove-chip:hover,
+    .topic-chip .remove-chip:hover {
+      color: #ff3b5c;
+    }
+
+    .inline-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .inline-row input, .inline-row select {
+      flex: 1;
+    }
+
+    .add-btn {
+      padding: 8px 14px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 8px;
+      color: #00e5a0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .add-btn:hover {
+      border-color: #00e5a0;
+    }
+
+    .section-divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 16px 0;
+    }
+
+    .section-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: #4a4a5a;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="popup-header">
+    <h1>📊 Market Intel</h1>
+    <p>Track viral tweets across your market topics</p>
+  </div>
+
+  <div class="popup-body">
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="number" id="scannedCount">0</div>
+        <div class="label">Scanned</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="foundCount">0</div>
+        <div class="label">Found</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="dailyCount">0</div>
+        <div class="label">/ 1000 today</div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Anthropic API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-api03-..." />
+    </div>
+
+    <div class="toggle-row">
+      <span data-tooltip="Starts the feed observer on page load.">Auto-scan feed</span>
+      <label class="toggle">
+        <input type="checkbox" id="autoScan" checked />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span data-tooltip="Temporarily stops classifying tweets.">Pause scanning</span>
+      <label class="toggle">
+        <input type="checkbox" id="pauseScan" />
+        <span class="toggle-slider pause-slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span data-tooltip="Toggles the sidebar overlay on X.">Show sidebar panel</span>
+      <label class="toggle">
+        <input type="checkbox" id="showSidebar" checked />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <hr class="section-divider" />
+    <div class="section-title">Market Topics</div>
+
+    <div class="field-group">
+      <div class="inline-row">
+        <input type="text" id="topicInput" placeholder="e.g. AI/ML Tools" style="flex:2" />
+        <input type="color" id="topicColor" value="#00e5a0" style="flex:0;width:42px;padding:4px;cursor:pointer;border-radius:8px;background:#1a1a2e;border:1px solid #2a2a3e" />
+        <button class="add-btn" id="addTopic">+</button>
+      </div>
+      <div class="chip-container" id="topicList"></div>
+    </div>
+
+    <hr class="section-divider" />
+    <div class="section-title">Engagement Filter</div>
+
+    <div class="field-group">
+      <div class="inline-row">
+        <div style="flex:1">
+          <label>Min Engagement</label>
+          <input type="number" id="minEngagement" value="100" min="0" />
+        </div>
+        <div style="flex:1">
+          <label>Metric</label>
+          <select id="engagementMetric">
+            <option value="likes">Likes</option>
+            <option value="retweets">Retweets</option>
+            <option value="replies">Replies</option>
+            <option value="views">Views</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider" />
+    <div class="section-title">Slack & Digest</div>
+
+    <div class="field-group">
+      <label>Slack Webhook URL</label>
+      <input type="url" id="slackWebhookUrl" placeholder="https://hooks.slack.com/services/..." />
+    </div>
+
+    <div class="field-group">
+      <label>Digest Day</label>
+      <select id="digestDay">
+        <option value="0">Sunday</option>
+        <option value="1" selected>Monday</option>
+        <option value="2">Tuesday</option>
+        <option value="3">Wednesday</option>
+        <option value="4">Thursday</option>
+        <option value="5">Friday</option>
+        <option value="6">Saturday</option>
+      </select>
+    </div>
+
+    <hr class="section-divider" />
+    <div class="section-title">Ignore Handles</div>
+
+    <div class="field-group">
+      <div class="inline-row">
+        <input type="text" id="handleInput" placeholder="@username" />
+        <button class="add-btn" id="addHandle">+</button>
+      </div>
+      <div class="chip-container" id="handleList"></div>
+    </div>
+
+    <button class="btn-save" id="saveBtn">Save Settings</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script src="js/popup.js"></script>
+</body>
+</html>
